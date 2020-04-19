@@ -15,6 +15,8 @@ interface Request {
 }
 
 class CreateTransactionService {
+  public async executeMany(requests: Request[]) {}
+
   public async execute({
     type,
     value,

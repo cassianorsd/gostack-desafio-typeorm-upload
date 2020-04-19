@@ -50,17 +50,6 @@ class ImportTransactionsService {
         return transactionsRepository.save(transaction);
       }),
     );
-    // transactions = await Promise.all(
-    //   data.map(transaction => {
-    //     const createTransaction = new CreateTransactionService();
-    //     return createTransaction.execute({
-    //       category: transaction.category,
-    //       title: transaction.title,
-    //       value: transaction.value,
-    //       type: transaction.type,
-    //     });
-    //   }),
-    // );
     return transactions;
   }
 }
