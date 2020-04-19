@@ -19,44 +19,48 @@ interface CategoryRequest {
 }
 
 class CreateTransactionService {
-  public async executeMany(requests: Request[]) {
+  public async executeMany(requests: Request[]): Promise<Transaction[]> {
     const categories = requests.map(item => {
       return { title: item.category };
     });
     const createCategory = new CreateCategoryService();
     await createCategory.executeMany(categories);
-    const storeTransaction = async ({
-      type,
-      value,
-      title,
-      category,
-    }: Request): Promise<Transaction> => {
-      const categoryRepository = getRepository(Category);
-      let hasCategory = await categoryRepository.findOne({
-        where: { title: category },
-      });
 
-      if (!hasCategory) {
-        hasCategory = await createCategory.execute({ title: category });
-      }
+    const totals = requests.reduce(
+      (acc, item) => {
+        if (item.type === 'income') acc.income += Number(item.value);
+        if (item.type === 'outcome') acc.outcome += Number(item.value);
+        return { ...acc };
+      },
+      {
+        income: 0,
+        outcome: 0,
+      },
+    );
 
-      const transactionsRepository = getCustomRepository(
-        TransactionsRepository,
+    if (totals.outcome > totals.income)
+      throw new AppError(
+        'User does not have enough balance for this transaction.',
+        400,
       );
 
-      const transaction = transactionsRepository.create({
-        title,
-        value,
-        type,
-        category_id: hasCategory.id,
-      });
-      await transactionsRepository.save(transaction);
-      return transaction;
-    };
-    const transactions = await Promise.all(
-      requests.map(request => storeTransaction(request)),
+    const incomeTransactions = await Promise.all(
+      requests
+        .filter(req => req.type === 'income')
+        .map(({ type, value, title, category }) =>
+          this.execute({ type, value, title, category }),
+        ),
     );
-    return transactions;
+
+    const outcomeTransactions = await Promise.all(
+      requests
+        .filter(req => req.type === 'outcome')
+        .map(({ type, value, title, category }) =>
+          this.execute({ type, value, title, category }),
+        ),
+    );
+
+    return [...incomeTransactions, ...outcomeTransactions];
   }
 
   public async execute({
