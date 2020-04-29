@@ -1,4 +1,6 @@
-import csv from 'csvtojson';
+import csv from 'csv-parse';
+import fs from 'fs';
+import { TransactionManager } from 'typeorm';
 import Transaction from '../models/Transaction';
 import uploadConfig from '../config/upload';
 import CreateTransactionService from './CreateTransactionService';
@@ -12,12 +14,27 @@ interface Request {
 
 class ImportTransactionsService {
   public async execute(file: Express.Multer.File): Promise<Transaction[]> {
-    const requests = await csv().fromFile(
+    const requests: Request[] = [];
+    const readStream = fs.createReadStream(
       `${uploadConfig.directory}/${file.filename}`,
     );
+    const parseCSV = readStream.pipe(csv({ from_line: 2 }));
 
-    const createTransaction = new CreateTransactionService();
-    const transactions = await createTransaction.executeMany(requests);
+    let transactions: Transaction[] = [];
+    parseCSV.on('data', item => {
+      const [title, type, value, category] = item.map((itemval: string) =>
+        itemval.trim(),
+      );
+      requests.push({ title, type, value, category });
+    });
+
+    await new Promise(resolve => {
+      parseCSV.on('end', async () => {
+        const createTransaction = new CreateTransactionService();
+        transactions = await createTransaction.executeMany(requests);
+        resolve(transactions);
+      });
+    });
     return transactions;
   }
 }
